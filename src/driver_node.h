@@ -30,6 +30,7 @@
 namespace livox_ros {
 
 class Lddc;
+class LdsLidar;
 
 class DriverNode final : public rclcpp::Node {
  public:
@@ -43,10 +44,13 @@ class DriverNode final : public rclcpp::Node {
  private:
   void PointCloudDataPollThread();
   void ImuDataPollThread();
+  // LiDAR未接続などで初期化に失敗した場合、成功するまで定期的に再試行する
+  void LidarInitRetryThread(LdsLidar *read_lidar, std::string user_config_path);
 
   std::unique_ptr<Lddc> lddc_ptr_;
   std::shared_ptr<std::thread> pointclouddata_poll_thread_;
   std::shared_ptr<std::thread> imudata_poll_thread_;
+  std::shared_ptr<std::thread> init_retry_thread_;
   std::shared_future<void> future_;
   std::promise<void> exit_signal_;
 };

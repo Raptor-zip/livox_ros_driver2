@@ -36,6 +36,9 @@ DriverNode::~DriverNode() {
   exit_signal_.set_value();
   pointclouddata_poll_thread_->join();
   imudata_poll_thread_->join();
+  if (init_retry_thread_ && init_retry_thread_->joinable()) {
+    init_retry_thread_->join();
+  }
 }
 
 } // namespace livox_ros

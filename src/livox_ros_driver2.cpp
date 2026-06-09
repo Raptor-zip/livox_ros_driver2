@@ -98,7 +98,11 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options)
     if ((read_lidar->InitLdsLidar(user_config_path))) {
       DRIVER_INFO(*this, "Init lds lidar success!");
     } else {
-      DRIVER_ERROR(*this, "Init lds lidar fail!");
+      // LiDAR未接続（NICにIPが付与されていない等）で初期化に失敗しても
+      // ノードを終了させず、接続されるまで再試行する
+      DRIVER_ERROR(*this, "Init lds lidar fail! Retrying until lidar is connected...");
+      init_retry_thread_ = std::make_shared<std::thread>(
+          &DriverNode::LidarInitRetryThread, this, read_lidar, user_config_path);
     }
   } else {
     DRIVER_ERROR(*this, "Invalid data src (%d), please check the launch file", data_src);
@@ -131,6 +135,23 @@ void DriverNode::ImuDataPollThread()
     lddc_ptr_->DistributeImuData();
     status = future_.wait_for(std::chrono::microseconds(0));
   } while (status == std::future_status::timeout);
+}
+
+void DriverNode::LidarInitRetryThread(LdsLidar *read_lidar, std::string user_config_path)
+{
+  std::future_status status;
+  do {
+    // ノード終了シグナルを待ちつつ5秒間隔で再試行
+    status = future_.wait_for(std::chrono::seconds(5));
+    if (status != std::future_status::timeout) {
+      return;
+    }
+    if (read_lidar->InitLdsLidar(user_config_path)) {
+      DRIVER_INFO(*this, "Init lds lidar success! (after retry)");
+      return;
+    }
+    DRIVER_WARN(*this, "Init lds lidar fail! Retrying in 5 seconds...");
+  } while (true);
 }
 
 
